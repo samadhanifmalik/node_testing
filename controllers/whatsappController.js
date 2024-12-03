@@ -114,6 +114,12 @@ class WhatsappController {
         // this.cleanupSession();
       });
 
+      this.client.on('error', (err) => {
+        console.error('Whatsapp Client Error:', err);
+        this.cleanupSession();
+        this.isAuthenticated = false;
+      });
+
       this.client.on('ready', () => {
         console.log('CLIENT IS READY');
       });
@@ -158,48 +164,26 @@ class WhatsappController {
 
 
 
-  async logout() {
-    try {
-      if (this.client) {
-        // Forcefully close browser instances
-        if (this.client.pupBrowser) {
-          try {
-            await this.client.pupBrowser.close();
-          } catch (closeError) {
-            console.warn('Error closing browser:', closeError);
-          }
-        }
-
-        // Additional process termination
-        await this.client.destroy();
-        
-        this.isAuthenticated = false;
-        
-        // Multiple cleanup attempts
-        this.cleanupSession();
-        
-        return { 
-          success: true, 
-          message: 'Logged out successfully' 
-        };
+ async logout() {
+  try {
+    if (this.client) {
+      // More aggressive browser closure
+      if (this.client.pupBrowser) {
+        await this.client.pupBrowser.close().catch(console.error);
       }
       
-      return { 
-        success: false, 
-        message: 'No active client to logout' 
-      };
-    } catch (error) {
-      console.error('Logout Error:', error);
-      
-      // Final fallback cleanup
-      this.cleanupSession();
-      
-      return { 
-        success: false, 
-        error: error.message 
-      };
+      // Add timeout for destroy
+      await Promise.race([
+        this.client.destroy(),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Destroy Timeout')), 5000))
+      ]);
     }
+  } catch (error) {
+    console.error('Advanced Logout Handling:', error);
+  } finally {
+    this.cleanupSession();
   }
+}
 
   async sendMessage(number, message) {
     try {
