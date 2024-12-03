@@ -185,28 +185,34 @@ class WhatsappController {
   }
 }
 
-  async sendMessage(number, message) {
-    try {
-      // Validate authentication
+async sendMessage(number, message) {
+  try {
       if (!this.client || !this.isAuthenticated) {
-        throw new Error('WhatsApp client not authenticated');
+          throw new Error('WhatsApp client not authenticated');
       }
-
+      
+      // Validate and resolve WID
+      const numberId = await this.client.getNumberId(number);
+      if (!numberId) {
+          throw new Error('Invalid WID: Number is not registered on WhatsApp');
+      }
+      
       // Send message
-      await this.client.sendMessage(number, message);
+      await this.client.sendMessage(numberId._serialized, message);
       
       return { 
-        success: true, 
-        message: 'Message sent successfully' 
+          success: true, 
+          message: 'Message sent successfully' 
       };
-    } catch (error) {
+  } catch (error) {
       console.error('Error sending message:', error);
       return { 
-        success: false, 
-        error: error.message 
+          success: false, 
+          error: error.message 
       };
-    }
   }
+}
+
 
   getAuthStatus() {
     return { 
