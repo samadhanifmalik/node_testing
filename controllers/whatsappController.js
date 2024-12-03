@@ -111,7 +111,7 @@ class WhatsappController {
         console.log(`Client disconnected. Reason: ${reason}`);
         console.log('Performing comprehensive cleanup...');
         this.isAuthenticated = false;
-        this.cleanupSession();
+        // this.cleanupSession();
       });
 
       this.client.on('ready', () => {
