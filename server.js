@@ -2,47 +2,33 @@ const express = require('express');
 const whatsappController = require('./controllers/whatsappController');
 
 const app = express();
-const port = 3000;
+require('dotenv').config();
+
+const PORT = process.env.PORT || 3000;
+
+// Middleware
+app.use(express.json());
+
+// Route Handlers
+const handleAsync = (fn) => (req, res, next) => {
+  Promise.resolve(fn(req, res, next)).catch(next);
+};
 
 // Authentication Route
-// app.get('/auth', async (req, res) => {
-//   try {
-//     const result = await whatsappController.initializeClient();
-//     res.json(result);
-//   } catch (error) {
-//     res.status(500).json({ 
-//       status: 'Authentication Failed', 
-//       error: error.message 
-//     });
-//   }
-// });
-
-app.get('/auth', async (req, res) => {
-    try {
-      const result = await whatsappController.initializeClient();
-      
-      if (result.success) {
-        res.json({
-          status: 'Initialization Started',
-          message: 'Check console for QR code. Scan to authenticate.'
-        });
-      } else {
-        res.status(500).json({
-          status: 'Initialization Failed',
-          error: result.error
-        });
-      }
-    } catch (error) {
-      console.error('Auth Route Error:', error);
-      res.status(500).json({ 
-        status: 'Authentication Failed', 
-        error: error.message 
-      });
-    }
+app.get('/auth', handleAsync(async (req, res) => {
+  const result = await whatsappController.initializeClient();
+  
+  res.status(result.success ? 200 : 500).json({
+    status: result.success ? 'Initialization Started' : 'Initialization Failed',
+    ...(result.success 
+      ? { message: 'Check console for QR code. Scan to authenticate.' }
+      : { error: result.error }
+    )
   });
+}));
 
 // Send Message Route
-app.get('/send-message', async (req, res) => {
+app.get('/send-message', handleAsync(async (req, res) => {
   const { number, message } = req.query;
 
   if (!number || !message) {
@@ -51,54 +37,21 @@ app.get('/send-message', async (req, res) => {
     });
   }
 
-  try {
-    const result = await whatsappController.sendMessage(number, message);
-    res.json(result);
-  } catch (error) {
-    res.status(500).json({ 
-      error: 'Failed to send message' 
-    });
-  }
-});
+  const result = await whatsappController.sendMessage(number, message);
+  res.status(result.success ? 200 : 500).json(result);
+}));
 
-app.get('/logout', async (req, res) => {
-    try {
-      const result = await whatsappController.logout();
-      res.json(result);
-    } catch (error) {
-      res.status(500).json({ 
-        error: 'Logout failed' 
-      });
-    }
-  });
-
-
+// Logout Route
+app.get('/logout', handleAsync(async (req, res) => {
+  await whatsappController.logout();
+  res.json({ success: true, message: 'Logged out successfully' });
+}));
 
 // Authentication Status Route
 app.get('/status', (req, res) => {
   res.json(whatsappController.getAuthStatus());
 });
 
-
-
-
-app.use((err, req, res, next) => {
-    console.error('Unhandled Error:', err);
-    res.status(500).json({
-      status: 'Server Error',
-      message: err.message
-    });
-  });
-  
-  // Optional: Handle uncaught exceptions and unhandled rejections
-  process.on('uncaughtException', (error) => {
-    console.error('Uncaught Exception:', error);
-  });
-  
-  process.on('unhandledRejection', (reason, promise) => {
-    console.error('Unhandled Rejection at:', promise, 'reason:', reason);
-  });
-
-app.listen(port, () => {
-  console.log(`WhatsApp Authentication Server running on port ${port}`);
+app.listen(PORT, () => {
+  console.log(`WhatsApp Authentication Server running on PORT: ${PORT}`);
 });
