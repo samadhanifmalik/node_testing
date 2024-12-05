@@ -41,6 +41,21 @@ app.get('/send-message', handleAsync(async (req, res) => {
   res.status(result.success ? 200 : 500).json(result);
 }));
 
+
+app.get('/get-mess', (req, res) => {
+    // res.json(whatsappController.getContacts());
+    whatsappController.getContacts(req, res);
+  });
+
+  app.get('/get-senders-today', (req, res) => {
+    whatsappController.getSendersForToday(req, res);
+});
+
+app.get('/get-todays-messages', (req, res) => {
+    whatsappController.getTodaysMessagesByContact(req, res);
+});
+
+
 // Logout Route
 app.get('/logout', handleAsync(async (req, res) => {
   await whatsappController.logout();

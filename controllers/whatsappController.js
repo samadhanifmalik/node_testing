@@ -137,6 +137,182 @@ class WhatsappController {
     }
   }
 
+
+  async getContacts(req, res) {
+    const number = '923048741300'; // Replace with the number you're testing
+    try {
+        if (!this.client || !this.isAuthenticated) {
+            return res.json({
+                success: false,
+                message: 'WhatsApp client not authenticated',
+            });
+        }
+
+        const chatId = await this.client.getNumberId(number);
+        if (!chatId) {
+            return res.json({
+                success: false,
+                message: 'Invalid WID: Number is not registered on WhatsApp',
+            });
+        }
+
+        const chat = await this.client.getChatById(chatId._serialized);
+        if (!chat) {
+            return res.json({
+                success: false,
+                message: 'Chat not found',
+            });
+        }
+
+        // const messages = await chat.fetchMessages({ limit: 30 });
+        // const formattedMessages = messages.map((message, index) => ({
+        //     id: index + 1,
+        //     timestamp: message.timestamp,
+        //     from: message.fromMe ? 'Me' : chatId._serialized,
+        //     body: message.body,
+        // }));
+
+        // const messages = await chat.fetchMessages({ limit: 100 });
+        const messages = await chat.fetchMessages();
+        const startOfDay = new Date();
+        startOfDay.setHours(0, 0, 0, 0);
+        const startOfDayTimestamp = Math.floor(startOfDay.getTime() / 1000); 
+        const todaysMessages = messages.filter(message => message.timestamp >= startOfDayTimestamp);
+        const formattedMessages = todaysMessages.map((message, index) => ({
+            id: index + 1,
+            timestamp: message.timestamp,
+            from: message.fromMe ? 'Me' : chatId._serialized,
+            body: message.body,
+        }));
+
+        return res.json({
+            success: true,
+            messages: formattedMessages,
+        });
+
+    } catch (error) {
+        console.error('Error fetching messages:', error);
+        return res.json({
+            success: false,
+            message: 'An error occurred while fetching messages',
+            error: error.message,
+        });
+    }
+  }
+
+
+
+  async getSendersForToday(req, res) {
+    try {
+        if (!this.client || !this.isAuthenticated) {
+            return res.json({
+                success: false,
+                message: 'WhatsApp client not authenticated',
+            });
+        }
+
+        // Fetch all chats
+        const chats = await this.client.getChats();
+        const startOfDay = new Date();
+        startOfDay.setHours(0, 0, 0, 0);
+        const startOfDayTimestamp = Math.floor(startOfDay.getTime() / 1000); // UNIX timestamp in seconds
+
+        // Create a Set to store unique contact numbers
+        const senders = new Set();
+
+        for (const chat of chats) {
+            // Fetch messages for each chat
+            const messages = await chat.fetchMessages(); // Adjust limit as necessary
+
+            // Filter messages sent today
+            const todaysMessages = messages.filter(message => message.timestamp >= startOfDayTimestamp);
+
+            // Extract sender IDs from today's messages
+            todaysMessages.forEach(message => {
+                if (!message.fromMe) { // Only consider messages not sent by you
+                    const sender = message.author || message.from; // `author` is for group messages
+                    senders.add(sender.replace('@c.us', '')); // Remove WhatsApp ID suffix
+                }
+            });
+        }
+
+        return res.json({
+            success: true,
+            senders: Array.from(senders), // Convert Set to Array
+        });
+    } catch (error) {
+        console.error('Error fetching senders for today:', error);
+        return res.json({
+            success: false,
+            message: 'An error occurred while fetching senders',
+            error: error.message,
+        });
+    }
+  }
+
+
+
+  async getTodaysMessagesByContact(req, res) {
+    try {
+        if (!this.client || !this.isAuthenticated) {
+            return res.json({
+                success: false,
+                message: 'WhatsApp client not authenticated',
+            });
+        }
+
+        // Fetch all chats
+        const chats = await this.client.getChats();
+        const startOfDay = new Date();
+        startOfDay.setHours(0, 0, 0, 0);
+        const startOfDayTimestamp = Math.floor(startOfDay.getTime() / 1000); // UNIX timestamp in seconds
+
+        // Prepare the result object
+        const contactsMessages = [];
+
+        for (const chat of chats) {
+            // Fetch messages for each chat
+            const messages = await chat.fetchMessages({limit: 5000}); // Adjust limit if needed
+
+            // Filter messages sent or received today
+            const todaysMessages = messages.filter(message => message.timestamp >= startOfDayTimestamp);
+
+            if (todaysMessages.length > 0) {
+                const contactNumber = chat.id.user || chat.id._serialized.replace('@c.us', ''); // Remove suffix for clean numbers
+
+                // Format today's messages
+                const formattedMessages = todaysMessages.map((message, index) => ({
+                    id: index + 1,
+                    timestamp: message.timestamp,
+                    body: message.body,
+                }));
+
+                // Add contact and their messages to the result
+                contactsMessages.push({
+                    from: contactNumber,
+                    messages: formattedMessages,
+                });
+            }
+        }
+
+        return res.json({
+            success: true,
+            "contacts": contactsMessages,
+        });
+    } catch (error) {
+        console.error('Error fetching today\'s messages by contact:', error);
+        return res.json({
+            success: false,
+            message: 'An error occurred while fetching messages',
+            error: error.message,
+        });
+    }
+  }
+
+
+
+
+
   async sendMessage(number, message) {
     try {
       if (!this.client || !this.isAuthenticated) {
